@@ -9,6 +9,8 @@ from .circular_progress import CircularProgressBar
 from core.database import DictionaryDB
 from core.stats_manager import StatsManager
 from core.sound_manager import SoundManager
+from core.config import Config
+from ui.stats_window import StatsWindow
 
 
 class MainWindow(QMainWindow):
@@ -17,10 +19,13 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Спонтаника")
         self.setMinimumSize(800, 600)
 
+        # Инициализация конфига в первую очередь
+        self.config = Config()
+
         # Инициализация компонентов
         self.db = DictionaryDB()
         self.stats_mgr = StatsManager()
-        self.sound_mgr = SoundManager()
+        self.sound_mgr = SoundManager(self.config)
 
         self.current_word = ""
         self.session_active = False
@@ -36,6 +41,9 @@ class MainWindow(QMainWindow):
         self.load_dictionaries()
 
     def create_widgets(self):
+        # Загрузка интервала из конфига
+        default_interval = self.config.get("interval", 60)
+
         # Прогресс-бар и слово
         self.progress_bar = CircularProgressBar()
         self.progress_bar.set_progress_color(QColor(52, 152, 219))
@@ -55,13 +63,13 @@ class MainWindow(QMainWindow):
         # Управление
         self.interval_slider = QSlider(Qt.Orientation.Horizontal)
         self.interval_slider.setRange(30, 3600)  # 30 сек - 60 мин
-        self.interval_slider.setValue(60)  # По умолчанию 1 мин
+        self.interval_slider.setValue(default_interval)
         self.interval_slider.setTickInterval(30)
         self.interval_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
 
         self.interval_spin = QSpinBox()
         self.interval_spin.setRange(30, 3600)
-        self.interval_spin.setValue(60)
+        self.interval_spin.setValue(default_interval)
         self.interval_spin.setSuffix(" сек")
 
         # Кнопки
@@ -69,6 +77,7 @@ class MainWindow(QMainWindow):
         self.pause_btn = QPushButton("Пауза")
         self.stop_btn = QPushButton("Стоп")
         self.stats_btn = QPushButton("Статистика")
+        self.dicts_btn = QPushButton("Словари")
 
         # Группа управления
         control_group = QGroupBox("Управление сессией")
@@ -77,6 +86,7 @@ class MainWindow(QMainWindow):
         control_layout.addWidget(self.pause_btn)
         control_layout.addWidget(self.stop_btn)
         control_layout.addWidget(self.stats_btn)
+        control_layout.addWidget(self.dicts_btn)
         control_group.setLayout(control_layout)
 
         # Группа интервала
@@ -126,6 +136,7 @@ class MainWindow(QMainWindow):
         self.pause_btn.clicked.connect(self.pause_session)
         self.stop_btn.clicked.connect(self.stop_session)
         self.stats_btn.clicked.connect(self.show_stats)
+        self.dicts_btn.clicked.connect(self.show_dict_manager)
 
         self.interval_slider.valueChanged.connect(self.interval_spin.setValue)
         self.interval_spin.valueChanged.connect(self.interval_slider.setValue)
@@ -174,6 +185,9 @@ class MainWindow(QMainWindow):
                 session_duration = (datetime.now() - self.session_start_time).total_seconds()
                 self.stats_mgr.add_session(session_duration, self.session_words, ["Основной"])
 
+            # Сохранение настроек интервала
+            self.config.set("interval", self.interval_spin.value())
+
             # Сброс интерфейса
             self.word_label.setText("Сессия завершена")
             self.progress_bar.set_value(0)
@@ -217,5 +231,10 @@ class MainWindow(QMainWindow):
         self.word_timer_label.setText(f"{minutes:02d}:{seconds:02d}")
 
     def show_stats(self):
-        # Позже реализуем окно статистики
-        print("Показ статистики")
+        self.stats_window = StatsWindow(self.stats_mgr)
+        self.stats_window.show()
+
+    def show_dict_manager(self):
+        from ui.dict_manager_dialog import DictManagerDialog
+        dialog = DictManagerDialog(self.db, self)
+        dialog.exec()
