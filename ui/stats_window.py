@@ -1,35 +1,54 @@
-# stats_window.py
-from PyQt6.QtWidgets import QWidget, QVBoxLayout
-import pyqtgraph as pg
+import json
+import os
+from datetime import datetime
 
 
-class StatsWindow(QWidget):
-    def __init__(self, stats_manager):
-        super().__init__()
-        self.stats_mgr = stats_manager
-        self.setWindowTitle("Статистика тренировок")
-        self.setGeometry(300, 300, 800, 600)
+class StatsManager:
+    def __init__(self):
+        self.stats_file = "core/stats.json"
+        self.data = self.load_or_init_stats()
 
-        layout = QVBoxLayout()
-        self.plot_widget = pg.PlotWidget()
-        layout.addWidget(self.plot_widget)
-        self.setLayout(layout)
+    def load_or_init_stats(self):
+        try:
+            # Проверка существования файла
+            if not os.path.exists(self.stats_file):
+                return self.init_stats_file()
 
-        self.update_plot()
+            # Проверка пустого файла
+            if os.path.getsize(self.stats_file) == 0:
+                return self.init_stats_file()
 
-    def update_plot(self):
-        daily_data = self.stats_mgr.get_daily_stats()
-        dates = sorted(daily_data.keys())
-        minutes = [daily_data[date]["total_time"] / 60 for date in dates]
+            # Загрузка данных
+            with open(self.stats_file, 'r') as f:
+                return json.load(f)
 
-        self.plot_widget.clear()
-        bar = pg.BarGraphItem(
-            x=range(len(dates)),
-            height=minutes,
-            width=0.6
-        )
-        self.plot_widget.addItem(bar)
+        except (json.JSONDecodeError, FileNotFoundError):
+            return self.init_stats_file()
 
-        self.plot_widget.setLabel('left', "Минут")
-        self.plot_widget.setLabel('bottom', "Даты")
-        self.plot_widget.getAxis('bottom').setTicks([[(i, date) for i, date in enumerate(dates)]])
+    def init_stats_file(self):
+        """Создает новый файл статистики с базовой структурой"""
+        initial_data = {
+            "sessions": [],
+            "dictionaries": {},
+            "total_time": 0,
+            "words_count": 0
+        }
+        with open(self.stats_file, 'w') as f:
+            json.dump(initial_data, f, indent=4)
+        return initial_data
+
+    def add_session(self, duration, words):
+        session_data = {
+            "date": datetime.now().isoformat(),
+            "duration": duration,
+            "words": words,
+            "word_count": len(words)
+        }
+        self.data["sessions"].append(session_data)
+        self.data["total_time"] += duration
+        self.data["words_count"] += len(words)
+        self.save_data()
+
+    def save_data(self):
+        with open(self.stats_file, 'w') as f:
+            json.dump(self.data, f, indent=4)

@@ -3,7 +3,7 @@
 
 # Исключить нужные каталоги и файлы
 !/.gitignore
-!/spontanika.py
+!/main.py
 !/core/
 !/data/
 !/ui/
